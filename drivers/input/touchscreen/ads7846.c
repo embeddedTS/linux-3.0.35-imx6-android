@@ -61,6 +61,15 @@
 /* this driver doesn't aim at the peak continuous sample rate */
 #define	SAMPLE_BITS	(8 /*cmd*/ + 16 /*sample*/ + 2 /* before, after */)
 
+
+/* For android these are the hard coded calibration values.  We could have 
+ * android load these from a /etc/pointercal, but it requires patching to
+ * do this anyway. */
+#define CALIB_X0 100
+#define CALIB_DX 3872
+#define CALIB_Y0 190
+#define CALIB_DY 3640
+
 struct ts_event {
 	/*
 	 * For portability, we can't read 12 bit values using SPI (which
@@ -853,6 +862,11 @@ static void ads7846_report_state(struct ads7846 *ts)
 			ts->pendown = true;
 			dev_vdbg(&ts->spi->dev, "DOWN\n");
 		}
+
+		x = 4096 - x;
+		y = 4096 - y;
+		x = ((x * 4096) / CALIB_DX) - CALIB_X0;
+		y = ((y * 4096) / CALIB_DY) - CALIB_Y0;
 
 		input_report_abs(input, ABS_X, x);
 		input_report_abs(input, ABS_Y, y);
