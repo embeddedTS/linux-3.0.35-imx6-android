@@ -125,7 +125,7 @@ static uint8_t detect_baseboard(void)
 		if(i & 4) gpio_set_value(TS4900_MODE2, 1);
 		else gpio_set_value(TS4900_MODE2, 0);
 		
-		udelay(10); // just for testing, should actually be ok at 2-3us
+		udelay(10);
 
 		in = gpio_get_value(TS4900_BD_ID_DATA);
 		id = (id >> 1);
@@ -419,16 +419,19 @@ static struct ion_platform_data imx_ion_data = {
 
 static struct ads7846_platform_data ts8390_ads7846_platform_data  = {
 	.model      		= 7843,
-	.vref_delay_usecs	= 100,
-	.settle_delay_usecs = 1000,
-	.penirq_recheck_delay_usecs = 500,
-	.x_plate_ohms		= 668,
-	.y_plate_ohms		= 258,
+	.vref_delay_usecs	= 0,
+	.settle_delay_usecs = 5000,
+	.penirq_recheck_delay_usecs = 5000,
+	.x_plate_ohms		= 400,
+	.y_plate_ohms		= 400,
 	.vref_mv			= 3300,
 	.swap_xy		    = 1,
 	.keep_vref_on		= 1,
 	.pressure_max		= 10000,
 	.pressure_min		= 5000,
+	.debounce_rep       = 2,
+	.debounce_tol       = 65535,
+	.debounce_max       = 0,
 	.gpio_pendown		= TS8390_PENDOWN,
 };
 
