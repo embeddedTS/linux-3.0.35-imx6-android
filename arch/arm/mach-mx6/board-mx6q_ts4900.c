@@ -406,7 +406,6 @@ static struct imx_ipuv3_platform_data ipu_data[] = {
 	},
 };
 
-
 static struct ion_platform_data imx_ion_data = {
 	.nr = 1,
 	.heaps = {
@@ -469,7 +468,7 @@ static struct i2c_gpio_platform_data ts8390_adc_pdata = {
 
 static struct platform_device ts8390_adc_device = {
 	.name			= "i2c-gpio",
-	.id				= 3,
+	.id				= 2,
 	.dev.platform_data	= &ts8390_adc_pdata,
 };
 
@@ -521,25 +520,13 @@ static struct fixed_voltage_config ts4900_vcc_reg_config = {
 	.init_data		= &ts4900_vcc_init,
 };
 
-static struct platform_device ts4900_vmmc_reg_devices[] = {
-   {   
-      .name	= "reg-fixed-voltage",
-      .id	= 2,
-      .dev	= {
-         .platform_data = &ts4900_vmmc_reg_config,         
-      }
-   }, 
-   {   
-      .name	= "reg-fixed-voltage",
-      .id	= 3,
-      .dev	= {
-         .platform_data = &ts4900_vcc_reg_config,
-      }
-   },
-};
-
 static struct regulator_consumer_supply sgtl5000_ts4900_consumer_vdda = {
 	.supply = "VDDA",
+	.dev_name = "1-000a",
+};
+
+static struct regulator_consumer_supply sgtl5000_ts4900_consumer_vddd = {
+	.supply = "VDDD",
 	.dev_name = "1-000a",
 };
 
@@ -553,6 +540,11 @@ static struct regulator_init_data sgtl5000_ts4900_vdda_reg_initdata = {
 	.consumer_supplies = &sgtl5000_ts4900_consumer_vdda,
 };
 
+static struct regulator_init_data sgtl5000_ts4900_vddd_reg_initdata = {
+	.num_consumer_supplies = 1,
+	.consumer_supplies = &sgtl5000_ts4900_consumer_vddd,
+};
+
 static struct regulator_init_data sgtl5000_ts4900_vddio_reg_initdata = {
 	.num_consumer_supplies = 1,
 	.consumer_supplies = &sgtl5000_ts4900_consumer_vddio,
@@ -563,6 +555,13 @@ static struct fixed_voltage_config sgtl5000_ts4900_vdda_reg_config = {
 	.microvolts		= 3300000,
 	.gpio			= -1,
 	.init_data		= &sgtl5000_ts4900_vdda_reg_initdata,
+};
+
+static struct fixed_voltage_config sgtl5000_ts4900_vddd_reg_config = {
+	.supply_name		= "VDDD",
+	.microvolts		= 0,
+	.gpio			= -1,
+	.init_data		= &sgtl5000_ts4900_vddd_reg_initdata,
 };
 
 static struct fixed_voltage_config sgtl5000_ts4900_vddio_reg_config = {
@@ -580,12 +579,37 @@ static struct platform_device sgtl5000_ts4900_vdda_reg_devices = {
 	},
 };
 
-static struct platform_device sgtl5000_ts4900_vddio_reg_devices = {
+static struct platform_device sgtl5000_ts4900_vddd_reg_devices = {
 	.name	= "reg-fixed-voltage",
 	.id	= 1,
 	.dev	= {
+		.platform_data = &sgtl5000_ts4900_vddd_reg_config,
+	},
+};
+
+static struct platform_device sgtl5000_ts4900_vddio_reg_devices = {
+	.name	= "reg-fixed-voltage",
+	.id	= 2,
+	.dev	= {
 		.platform_data = &sgtl5000_ts4900_vddio_reg_config,
 	},
+};
+
+static struct platform_device ts4900_vmmc_reg_devices[] = {
+   {   
+      .name	= "reg-fixed-voltage",
+      .id	= 3,
+      .dev	= {
+         .platform_data = &ts4900_vmmc_reg_config,         
+      }
+   }, 
+   {   
+      .name	= "reg-fixed-voltage",
+      .id	= 4,
+      .dev	= {
+         .platform_data = &ts4900_vcc_reg_config,
+      }
+   },
 };
 
 static struct platform_pwm_backlight_data mx6_ts4900_pwm3_backlight_data = {
@@ -692,6 +716,7 @@ static int imx6q_init_sgtl5000audio(void)
 	imx6q_add_imx_ssi(1, &mx6_ts4900_ssi_pdata);
 
 	platform_device_register(&sgtl5000_ts4900_vdda_reg_devices);
+	platform_device_register(&sgtl5000_ts4900_vddd_reg_devices);
 	platform_device_register(&sgtl5000_ts4900_vddio_reg_devices);
 
 	return 0;
@@ -724,17 +749,6 @@ static int __init caam_setup(char *__unused)
 }
 early_param("caam", caam_setup);
 
-#define SNVS_LPCR 0x38
-static void mx6_snvs_poweroff(void)
-{
-
-	void __iomem *mx6_snvs_base =  MX6_IO_ADDRESS(MX6Q_SNVS_BASE_ADDR);
-	u32 value;
-	value = readl(mx6_snvs_base + SNVS_LPCR);
-	/*set TOP and DP_EN bit*/
-	writel(value | 0x60, mx6_snvs_base + SNVS_LPCR);
-}
-
 static const struct imx_pcie_platform_data mx6_ts4900_pcie_data __initconst = {
 #ifdef CONFIG_IMX_PCIE_EP_MODE_IN_EP_RC_SYS
 	.type_ep	= 1,
@@ -748,9 +762,6 @@ static const struct imx_pcie_platform_data mx6_ts4900_pcie_data __initconst = {
  */
 static void __init ts4900_board_init(void)
 {
-	struct clk *clko, *clko2;
-	struct clk *new_parent;
-	int rate;
 	uint8_t baseboardid;
 	struct platform_device *voutdev;
 
@@ -795,9 +806,13 @@ static void __init ts4900_board_init(void)
 		// Enable LCD power
 		gpio_request(TS4900_LCD_3P3_EN, "lcd-3p3-en");
 		gpio_direction_output(TS4900_LCD_3P3_EN, 1);
+		// Okaya LCD requires 60ms after 3.3V before we drive the
+		// LCD pins + some time for 3.3V rail to rise
+		msleep(65);
 
 		imx6q_add_ipuv3(0, &ipu_data[0]);
-		imx6q_add_ipuv3(1, &ipu_data[1]);
+		if(cpu_is_mx6q())
+			imx6q_add_ipuv3(1, &ipu_data[1]);
 
 		imx6q_add_ipuv3fb(0, &ts4900_fb_data[0]);
 		imx6q_add_lcdif(&lcdif_data);
@@ -826,7 +841,7 @@ static void __init ts4900_board_init(void)
 
 		// Enable Speaker
 		gpio_request(TS8390_EN_SPKR, "spkr-en");
-		gpio_direction_output(TS8390_EN_SPKR, 0);
+		gpio_direction_output(TS8390_EN_SPKR, 1);
 	} else if ((baseboardid & ~0xc0) == 0xa)
 	{
 		printk(KERN_INFO "Baseboard: TS-8900\n");
@@ -835,6 +850,7 @@ static void __init ts4900_board_init(void)
 		imx6q_add_ipuv3(0, &ipu_data[0]);
 		imx6q_add_ipuv3(1, &ipu_data[0]);
 		imx6q_add_ipuv3fb(0, &ts4900_fb_data[1]);
+
 		// Enable LCD power
 		gpio_request(TS4900_LCD_3P3_EN, "lcd-3p3-en");
 		gpio_direction_output(TS4900_LCD_3P3_EN, 1);
@@ -921,26 +937,7 @@ static void __init ts4900_board_init(void)
 		imx6q_add_flexcan0(&mx6q_ts4900_flexcan0_pdata);
 	*/
 
-	clko2 = clk_get(NULL, "clko2_clk");
-	if (IS_ERR(clko2))
-		pr_err("can't get CLKO2 clock.\n");
-
-	new_parent = clk_get(NULL, "osc_clk");
-	if (!IS_ERR(new_parent)) {
-		clk_set_parent(clko2, new_parent);
-		clk_put(new_parent);
-	}
-	rate = clk_round_rate(clko2, 24000000);
-	clk_set_rate(clko2, rate);
-	clk_enable(clko2);
-
-	/* Camera and audio use osc clock */
-	clko = clk_get(NULL, "clko_clk");
-	if (!IS_ERR(clko))
-		clk_set_parent(clko, clko2);
-
 	/* Register charger chips */
-	pm_power_off = mx6_snvs_poweroff;
 	imx6q_add_busfreq();
 
 	/* Add PCIe RC interface support */
@@ -951,8 +948,6 @@ static void __init ts4900_board_init(void)
 	imx6q_add_perfmon(1);
 	imx6q_add_perfmon(2);
 
-	
-	
 	// Default to green on, red off
 	gpio_request(TS4900_GREEN_LED, "status-led");
 	gpio_request(TS4900_RED_LED, "status-led");
